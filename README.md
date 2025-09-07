@@ -27,3 +27,9 @@ This project is a simple text editor built with a python library called Tkinter.
 # Running the Program
 ```python
 python textEditor.py
+```
+
+# Other Questions
+If you have any questions containing to the code, feel free to ask but there's a good chance I might never answer it since I'm barely ever on this site.
+Also, I cannot verify that this program works on other systems but appears to work fine on Windows 10 (my system).
+:)
