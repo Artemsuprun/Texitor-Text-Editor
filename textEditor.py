@@ -1,12 +1,13 @@
 # this program is a text editor for the user.
 
+# library imports
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import ttk
 
 # global variable
 tab_control = None
-chunk_size = 4096
+chunk_size = 1024 * 8 # 8KB chunk size for reading and writing files
 
 
 # overriding the copy event to add a new line when copying nothing.
@@ -51,15 +52,22 @@ def add_tab(path="untitled"):
     # make the tab control visible if it is hidden
     if not tab_control.select(): # check if a tab exists
         tab_control.grid(row=0, column=0, sticky="nsew")
-        
-    # add a new tab
-    text_widget = tk.Text(tab_control, wrap="word", undo=True, autoseparators=True, bd=0)
-    text_widget.rowconfigure(0, weight=1)
-    text_widget.columnconfigure(0, weight=1)
-    tab_control.add(text_widget, text=path)
-    Vscrollbar = tk.Scrollbar(text_widget, orient="vertical")
+    
+    # create frame for the tab
+    tab_frame = tk.Frame(tab_control)
+    tab_frame.rowconfigure(0, weight=1)
+    tab_frame.columnconfigure(0, weight=1)
+
+    # add a new text widget to the tab
+    text_widget = tk.Text(tab_frame, wrap="none", undo=True, autoseparators=True, bd=0)
+    text_widget.grid(row=0, column=0, sticky="nsew")
+
+    # adds a scrollbar for the text box
+    Vscrollbar = tk.Scrollbar(tab_frame, orient="vertical", command=text_widget.yview)
     Vscrollbar.grid(row=0, column=1, sticky="ns")
     text_widget.config(yscrollcommand=Vscrollbar.set)
+
+    tab_control.add(tab_frame, text=path)
 
     # update key bindings
     text_widget.bind("<Control-y>", do_nothing)
@@ -67,7 +75,7 @@ def add_tab(path="untitled"):
     text_widget.bind("<Control-Shift-Z>", redo_text)
 
     # switch to the new tab
-    tab_control.select(text_widget)
+    tab_control.select(tab_frame)
 
     # focus on the text widget
     text_widget.focus_set()
@@ -90,6 +98,7 @@ def open_file():
                 chunk = file.read(chunk_size)
                 while chunk:
                     text_widget.insert(tk.END, chunk)
+                    #text_widget.insert(tk.END, "\n") This was adding an extra new line at the end of each chunk which helped reduce lag
                     chunk = file.read(chunk_size)
         except FileNotFoundError:
             print("The file"+new_path+"was not found.")
@@ -131,7 +140,8 @@ def save_file():
     if file_path:
         try:
             with open(file_path, "w") as file:
-                text_widget = tab_control.nametowidget(tab_control.select())
+                text_frame = tab_control.nametowidget(tab_control.select())
+                text_widget = text_frame.winfo_children()[0]
                 end_index = int(text_widget.index("end").split(".")[0]) - 1
                 line_index = 1
                 while line_index < end_index:
@@ -226,6 +236,8 @@ def GUI_layout(root):
     # Text frames using tab control
     tab_control = ttk.Notebook(edit_frame)
     tab_control.grid(row=0, column=0, sticky="nsew")
+    tab_control.rowconfigure(0, weight=1)
+    tab_control.columnconfigure(0, weight=1)
     tab_control.grid_remove()
     
     return
@@ -265,67 +277,3 @@ def main():
 # run funciton if the file is directly called on
 if __name__ == "__main__":
     main()
-
-
-# test text
-'''
-1. This is ONE!
-2. THIS IS two
-3.
-4. testing
-5.
-'''
-
-'''
-# global variable
-    global text_widget
-
-    # configure the grid layout
-    root.rowconfigure(0, weight=1)
-    root.columnconfigure(1, weight=1, minsize=200)
-
-    # list of files frame
-    file_frame = tk.Frame(root, width=100, height=100, bg="lightgrey")
-    file_frame.grid(row=0, column=0, sticky="ns")
-    #file_frame.pack(side="left", fill="y")
-    #tk.Label(file_frame, text="Files!.").pack()
-    file_frame.rowconfigure(1, weight=1)
-    file_frame.columnconfigure(0, weight=1, minsize=100)
-    #tk.Label(file_frame, text="Files").grid(row=0, column=0, sticky="n", pady=5)
-    open_button = tk.Button(file_frame, text="Open", command=open_file)
-    open_button.grid(row=0, column=0, sticky="new", padx=5, pady=5)
-    new_button = tk.Button(file_frame, text="New", command=new_file)
-    new_button.grid(row=1, column=0, sticky="new", padx=5)
-
-    # the main text editing frame
-    #edit_frame = tk.Frame(root, width=200, bg="white")
-    #edit_frame.pack(side="left", fill="both", expand=True)
-
-    text_widget = tk.Text(root, wrap="word", undo=True, autoseparators=True)
-    text_widget.grid(row=0, column=1, sticky="nsew")
-
-    # create text widget
-    #text_widget = tk.Text(edit_frame, wrap="word", undo=True, autoseparators=True)
-    #text_widget.pack(side="left", fill="both", expand=True)
-    # adds a scrollbar for the text box
-    #Vscrollbar = tk.Scrollbar(edit_frame, orient="vertical")
-    Vscrollbar = tk.Scrollbar(root, orient="vertical")
-    Vscrollbar.grid(row=0, column=2, sticky="ns")
-    #Vscrollbar.pack(side="right", fill="y")
-    # connect text widget to the scrollbar
-    text_widget.config(yscrollcommand=Vscrollbar.set)
-    # bind the cpy for the app
-    text_widget.bind("<Control-c>", copy_text)
-    text_widget.bind("<Control-Shift-Z>", redo_text)
-    text_widget.unbind("<Control-y>")
-
-
-    #tabControl.add(text_widget, text="Untitled")
-
-    #text_widget2 = tk.Text(tab_frame, wrap="word", undo=True, autoseparators=True, bd=0)
-    #text_widget2.grid(row=0, column=0, sticky="nsew")
-    #tabControl.add(text_widget2, text="Untitled")
-
-    #text_widget = tk.Text(root, wrap="word", undo=True, autoseparators=True)
-    #text_widget.grid(row=0, column=1, sticky="nsew")
-'''
