@@ -9,26 +9,25 @@ from tkinter import messagebox
 
 # the main page of the app.
 class MainPage(tk.Frame):
-    def __init__(self, parent):
+    def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
-        # member variables
-        self.chunk_size = 1024 * 8 # 8KB chunk size for reading and writing files.
-        self.tabs = [] # keeps track of the tabs
-        self.parent = parent
-
+        self.controller = controller
         # setting up the frame's grid layout.
         self.rowconfigure(0, weight=1)
         self.columnconfigure(1, weight=1, minsize=200)
 
-        # list of files
-        file_frame = tk.Frame(self, width=140, bg="lightgrey")
-        file_frame.grid(row=0, column=0, sticky="ns")
-        file_frame.rowconfigure(1, weight=1)
-        file_frame.columnconfigure(0, weight=1, minsize=100)
+        # side bare of the text editor
+        side_frame = tk.Frame(self, width=140, bg="lightgrey")
+        side_frame.grid(row=0, column=0, sticky="ns")
+        side_frame.rowconfigure(1, weight=1)
+        side_frame.columnconfigure(0, weight=1, minsize=100)
 
-        settings_btn = tk.Button(file_frame, text="Settings", command=self._settings_layout)
-        settings_btn.grid(row=0, column=0, sticky="new", padx=5, pady=5)
-        ttk.Separator(file_frame, orient="horizontal").grid(row=1, column=0, sticky="new")
+        # program options on the side bar
+        terminal_btn = tk.Button(side_frame, text="Terminal")#, command=self._terminal)
+        terminal_btn.grid(row=1, column=0, sticky="sew", padx=5, pady=5)
+        ttk.Separator(side_frame, orient="horizontal").grid(row=1, column=0, sticky="sew")
+        settings_btn = tk.Button(side_frame, text="Settings", command=controller._settings_layout)
+        settings_btn.grid(row=2, column=0, sticky="sew", padx=5, pady=5)
         
         # the main text editing frame
         edit_frame = tk.Frame(self, width=200, bg="white")
@@ -50,9 +49,9 @@ class MainPage(tk.Frame):
         welcome_label = tk.Label(start_frame, text="Welcome!", bg="lightgrey")
         welcome_label.grid(row=0, column=0)
         ttk.Separator(start_frame, orient="horizontal").grid(row=1, column=0, sticky="ew", pady=3) 
-        open_button = tk.Button(start_frame, text="Open", command=self._open_file)
+        open_button = tk.Button(start_frame, text="Open", command=controller._open_file)
         open_button.grid(row=2, column=0, sticky="new", padx=10, pady=3)
-        new_button = tk.Button(start_frame, text="New", command=self._add_tab)
+        new_button = tk.Button(start_frame, text="New", command=controller._add_tab)
         new_button.grid(row=3, column=0, sticky="new", padx=10, pady=(3, 6))
 
         # Text frames using tab control
@@ -62,7 +61,7 @@ class MainPage(tk.Frame):
         self.tab_control.columnconfigure(0, weight=1)
         self.tab_control.grid_remove()
 
-        self.tab_control.bind("<<NotebookTabChanged>>", self._cursor_update)
+        self.tab_control.bind("<<NotebookTabChanged>>", controller._cursor_update)
 
         # Add a small label at the bottom.
         status_frame = tk.Frame(self, height=25)
@@ -73,9 +72,189 @@ class MainPage(tk.Frame):
         self.cursor_pos.grid(row=1, column=0, sticky="e")
         return
     
+    def get_tab_index(self, tab=None):
+        if tab:
+            self.tab_control.tabs()[tab]
+        else:
+            idx = self.tab_control.index(self.tab_control.select())
+        return idx
+    
+    def set_cursor(self, txt=""):
+        self.cursor_pos.config(text=txt)
+        return
+    
+    def forget_tab(self, tab):
+        self.tab_control.forget(tab)
+        return
+    
+    def hide_tabs(self):
+        self.tab_control.grid_remove()
+        return
+    
+    def display_tabs(self):
+        self.tab_control.grid(row=0, column=0, sticky="nsew")
+        return
+    
+    def add_tab(self, path="untitled"):
+        # create frame for the tab.
+        tab_frame = tk.Frame(self.tab_control)
+        tab_frame.rowconfigure(0, weight=1)
+        tab_frame.columnconfigure(0, weight=1)
+
+        # add a new text widget to the tab.
+        text_widget = tk.Text(tab_frame, wrap="none", undo=True, autoseparators=True, bd=0)
+        text_widget.grid(row=0, column=0, sticky="nsew")
+
+        # adds a scrollbar for the text box.
+        Vscrollbar = tk.Scrollbar(tab_frame, orient="vertical", command=text_widget.yview)
+        Vscrollbar.grid(row=0, column=1, sticky="ns")
+        text_widget.config(yscrollcommand=Vscrollbar.set)
+
+        self.tab_control.add(tab_frame, text=path)
+
+        # right click context menu for text widgets.
+        context_menu = tk.Menu(self.tab_control, tearoff=0)
+        context_menu.add_command(label="Undo")
+        context_menu.add_command(label="Redo")
+        context_menu.add_separator()
+        context_menu.add_command(label="Cut")
+        context_menu.add_command(label="Copy")
+        context_menu.add_command(label="Paste")
+        context_menu.add_separator()
+        context_menu.add_command(label="Select All")
+        def show_context_menu(event):
+            try:
+                context_menu.tk_popup(event.x_root, event.y_root)
+            finally:
+                context_menu.grab_release()
+        text_widget.bind("<Button-3>", show_context_menu)
+
+        return text_widget
+    
+    def switch_tab(self, tab=None):
+        if tab:
+            self.tab_control.select(tab)
+        else:
+            self.tab_control.select(self.tab_control.index("end")-1)
+        return
+    
+    def get_tab_name(self, tab=None):
+        if tab:
+            name = self.tab_control.tab(tab, "text")
+        else:
+            name = self.tab_control.tab(self.tab_control.select(), "text")
+        return name
+    
+    def set_tab_name(self, name, tab=None):
+        if tab:
+            self.tab_control.tab(tab, text=name)
+        else:
+            self.tab_control.tab(self.tab_control.select(), text=name)
+        return
+
+
+# Class form of the app.
+class TextEditor(tk.Tk):
+    def __init__(self, *args, **kwargs):
+        # Properly initializing the parent constructor to start.
+        tk.Tk.__init__(self, *args, **kwargs)
+        # member variables
+        self.chunk_size = 1024 * 8 # 8KB chunk size for reading and writing files.
+        self.tabs = [] # keeps track of the tabs
+        # Title of the main page.
+        self.title("Texitor ~ A Simple Text Editor")
+        # Setting up the window size of the app.
+        self.geometry("800x600")
+        # Setting up the grid layout.
+        self.rowconfigure(0, weight=1)
+        self.columnconfigure(0, weight=1)
+
+        # setting up the base container
+        container = tk.Frame(self, background="lightblue")
+        container.grid(row=0, column=0, sticky="nsew")
+        container.rowconfigure(0, weight=1)
+        container.columnconfigure(0, weight=1)
+
+        # contain the frames.
+        self.frames = {}
+        for F in [MainPage]: # might add more frames for other options later on.
+            frame = F(container, self)
+            self.frames[F] = frame
+            frame.grid(row=0, column=0, sticky="nsew")
+        
+        self._show_frame(MainPage)
+
+        # binding keys to the main window
+        self.bind("<Control-c>", self._copy_text)
+        self.bind("<Control-Shift-Z>", self._redo_text)
+        self.bind("<Control-y>", self._do_nothing)
+        self.bind("<Control-s>", self._save_file_event)
+        self.bind("<Control-Shift-S>", self._save_as_file_event)
+        self.bind("<Control-n>", self._add_tab_event)
+        self.bind("<Control-o>", self._open_file_event)
+        self.bind("<Control-Shift-N>", self._remove_tab_event)
+        self.bind("<Control-Tab>", self._switch_tab)
+        self.bind("<Control-Shift-Tab>", self._switch_tab_backward)
+
+        # set up the menu options
+        self._menu_setup()
+
+        # focus on the window
+        self.focus_set()
+
+        # ensure files are saved if needed.
+        self.protocol("WM_DELETE_WINDOW", self._unsaved_file)
+        return
+
+    # A method of switching view frames.
+    def _show_frame(self, f):
+        frame = self.frames[f]
+        frame.tkraise()
+        return
+    
+    # sets up the menu tab on the main window.
+    def _menu_setup(self):
+        menu = tk.Menu(self)
+        self.config(menu=menu)
+        filemenu = tk.Menu(menu, tearoff=False)
+        filemenu.add_command(label="New", command=self._add_tab)
+        filemenu.add_command(label="Open...", command=self._open_file)
+        filemenu.add_command(label="Save", command=self._save_file)
+        filemenu.add_command(label="Save As...", command=self._save_as_file)
+        filemenu.add_separator()
+        filemenu.add_command(label="Exit", command=self._unsaved_file)
+        menu.add_cascade(label="File", menu=filemenu)
+        helpmenu = tk.Menu(menu, tearoff=False)
+        helpmenu.add_command(label="About")
+        menu.add_cascade(label="Help", menu=helpmenu)
+        return
+    
+    # Overriding the copy event to add a new line when copying nothing.
+    def _copy_text(self, event):
+        selected_text = ""
+        try:
+            selected_text = event.widget.selection_get()
+        except tk.TclError:# no text is selected
+            selected_text = "\n"
+        event.widget.clipboard_clear()
+        event.widget.clipboard_append(selected_text)
+        return "break"
+    
+    # Overriding the default redo key bind.
+    def _redo_text(self, event):
+        try:
+            event.widget.edit_redo()
+        except:
+            pass
+        return "break"
+    
+    # removes default key binding behaviors.
+    def _do_nothing(self, event):
+        return "break"
+    
     # Sets up the settings window.
     def _settings_layout(self):
-        settings = tk.Toplevel(self.parent)
+        settings = tk.Toplevel(self)
         settings.title("Settings")
         settings.geometry("400x500")
 
@@ -94,18 +273,20 @@ class MainPage(tk.Frame):
 
     # Updates the label that displays the cursors position.
     def _cursor_update(self, event):
-        if self.tab_control.select(): # check if a tab exists.
+        result = None
+        text = ''
+        if self.tabs: # check if a tab exists.
             try:
                 # get the cursors position and update the label.
-                text_widget = self.tabs[self.tab_control.index(self.tab_control.select())]
+                text_widget = self.tabs[self.frames[MainPage].get_tab_index()]
                 line, col = text_widget.index(tk.INSERT).split(".")
-                self.cursor_pos.config(text=f"Line: {line} | Column: {int(col)+1}")
+                text = f"Line: {line} | Column: {int(col)+1}"
+                result = True
             except:
                 # display an empty label.
-                self.cursor_pos.config(text="")
-        else: # no tab is selected.
-            self.cursor_pos.config(text="")
-        return
+                result = False
+        self.frames[MainPage].set_cursor(text)
+        return result
 
 
     # Properly removes tabs.
@@ -115,18 +296,15 @@ class MainPage(tk.Frame):
 
     def _remove_tab(self, index=None):
         result = None # return value.
-        if self.tab_control.select(): # check if a tab exists.
-            if index is None:
-                idx = self.tab_control.select()
-            elif isinstance(index, int):
-                idx = self.tab_control.tabs()[index]
-            self.tabs.pop(self.tab_control.index(idx))
-            self.tab_control.forget(idx)
+        if self.tabs: # check if a tab exists.
+            idx = self.frames[MainPage].get_tab_index(index)
+            self.tabs.pop(idx)
+            self.frames[MainPage].forget_tab(idx)
             result = True
 
             # hide the tab control if no tabs exist.
-            if not self.tab_control.select(): # check if any tabs exists.
-                self.tab_control.grid_remove()
+            if not self.tabs: # check if any tabs exists.
+                self.frames[MainPage].hide_tabs()
         else:
             result = False
         
@@ -140,54 +318,23 @@ class MainPage(tk.Frame):
 
     def _add_tab(self, path="untitled"):
         # make the tab control visible if it is hidden.
-        if not self.tab_control.select(): # check if a tab exists.
-            self.tab_control.grid(row=0, column=0, sticky="nsew")
+        if not self.tabs: # check if a tab exists.
+            self.frames[MainPage].display_tabs()
         
-        # create frame for the tab.
-        tab_frame = tk.Frame(self.tab_control)
-        tab_frame.rowconfigure(0, weight=1)
-        tab_frame.columnconfigure(0, weight=1)
-
-        # add a new text widget to the tab.
-        text_widget = tk.Text(tab_frame, wrap="none", undo=True, autoseparators=True, bd=0)
-        text_widget.grid(row=0, column=0, sticky="nsew")
+        text_widget = self.frames[MainPage].add_tab(path)
         self.tabs.append(text_widget)
 
-        # adds a scrollbar for the text box.
-        Vscrollbar = tk.Scrollbar(tab_frame, orient="vertical", command=text_widget.yview)
-        Vscrollbar.grid(row=0, column=1, sticky="ns")
-        text_widget.config(yscrollcommand=Vscrollbar.set)
-
-        self.tab_control.add(tab_frame, text=path)
-
         # update key bindings for the text widget.
-        text_widget.bind("<Control-y>", self.parent._do_nothing)
+        text_widget.bind("<Control-y>", self._do_nothing)
         text_widget.bind("<Control-o>", self._open_file_event)
         text_widget.bind("<KeyRelease>", self._cursor_update)
         text_widget.bind("<ButtonRelease>", self._cursor_update)
 
-        # switch to the new tab.
-        self.tab_control.select(tab_frame)
+        # switch to the new tab at the end.
+        self.frames[MainPage].switch_tab(len(self.tabs)-1)
 
         # focus on the text widget.
         text_widget.focus_set()
-
-        # right click context menu for text widgets.
-        context_menu = tk.Menu(self.tab_control, tearoff=0)
-        context_menu.add_command(label="Undo")
-        context_menu.add_command(label="Redo")
-        context_menu.add_separator()
-        context_menu.add_command(label="Cut")
-        context_menu.add_command(label="Copy")
-        context_menu.add_command(label="Paste")
-        context_menu.add_separator()
-        context_menu.add_command(label="Select All")
-        def show_context_menu(event):
-            try:
-                context_menu.tk_popup(event.x_root, event.y_root)
-            finally:
-                context_menu.grab_release()
-        text_widget.bind("<Button-3>", show_context_menu)
 
         return text_widget
 
@@ -243,13 +390,13 @@ class MainPage(tk.Frame):
     def _save_file(self):
         file_path = None
         # Check if the currently selected file has a path, make one if not.
-        if self.tab_control.select(): # Check if a tab exists
-            file_path = self.tab_control.tab(self.tab_control.select(), "text")
+        if self.tabs: # Check if a tab exists.
+            file_path = self.frames[MainPage].get_tab_name()
             if file_path == "untitled":
                 file_path = filedialog.asksaveasfilename(defaultextension=".txt", initialdir="/", title="Save File As", filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
                 if file_path:
                     # Update the tab's text
-                    self.tab_control.tab(self.tab_control.select(), text=file_path)
+                    self.frames[MainPage].set_tab_name(file_path)
         
         result = None # return value
         # If the file_path is valid, save it.
@@ -257,7 +404,7 @@ class MainPage(tk.Frame):
             try:
                 with open(file_path, "w") as file:
                     # Obtain the text widget.
-                    text_widget = self.tabs[self.tab_control.index(self.tab_control.select)]
+                    text_widget = self.tabs[self.frames[MainPage].get_tab_index()]
                     # Find the end of the file.
                     end_index = int(text_widget.index("end").split(".")[0]) - 1
                     line_index = 1
@@ -302,104 +449,13 @@ class MainPage(tk.Frame):
         result = messagebox.askyesnocancel("Confirm", "Do you want to save your changes before leaving?")
         if result is True: # Save changes.
             # save logic
-            self.parent.destroy()
+            self.destroy()
         elif result is False: # Discard changes.
-            self.parent.destroy()
+            self.destroy()
         else: # Return to the program.
             pass
         #else:
         return
-
-# Class form of the app.
-class TextEditor(tk.Tk):
-    def __init__(self, *args, **kwargs):
-        # Properly initializing the parent constructor to start.
-        tk.Tk.__init__(self, *args, **kwargs)
-        # Title of the main page.
-        self.title("Texitor ~ A Simple Text Editor")
-        # Setting up the window size of the app.
-        self.geometry("800x600")
-        # Setting up the grid layout.
-        self.rowconfigure(0, weight=1)
-        self.columnconfigure(0, weight=1)
-
-        # contain the frames.
-        self.frames = {}
-        for f in (MainPage,): # might add more frames for other options later on.
-            frame = f(self)
-            self.frames[f] = frame
-            frame.grid(row=0, column=0, sticky="nsew")
-        
-        self._show_frame(MainPage)
-
-        # binding keys to the main window
-        self.bind("<Control-c>", self._copy_text)
-        self.bind("<Control-Shift-Z>", self._redo_text)
-        self.bind("<Control-y>", self._do_nothing)
-        self.bind("<Control-s>", self.frames[MainPage]._save_file_event)
-        self.bind("<Control-Shift-S>", self.frames[MainPage]._save_as_file_event)
-        self.bind("<Control-n>", self.frames[MainPage]._add_tab_event)
-        self.bind("<Control-o>", self.frames[MainPage]._open_file_event)
-        self.bind("<Control-Shift-N>", self.frames[MainPage]._remove_tab_event)
-        self.bind("<Control-Tab>", self.frames[MainPage]._switch_tab)
-        self.bind("<Control-Shift-Tab>", self.frames[MainPage]._switch_tab_backward)
-
-        # set up the menu options
-        self._menu_setup()
-
-        # focus on the window
-        self.focus_set()
-
-        # ensure files are saved if needed.
-        self.protocol("WM_DELETE_WINDOW", self.frames[MainPage]._unsaved_file)
-        return
-
-    # A method of switching view frames.
-    def _show_frame(self, f):
-        frame = self.frames[f]
-        frame.tkraise()
-        return
-    
-    # sets up the menu tab on the main window.
-    def _menu_setup(self):
-        menu = tk.Menu(self)
-        self.config(menu=menu)
-        filemenu = tk.Menu(menu, tearoff=False)
-        filemenu.add_command(label="New", command=self.frames[MainPage]._add_tab)
-        filemenu.add_command(label="Open...", command=self.frames[MainPage]._open_file)
-        filemenu.add_command(label="Save", command=self.frames[MainPage]._save_file)
-        filemenu.add_command(label="Save As...", command=self.frames[MainPage]._save_as_file)
-        filemenu.add_separator()
-        filemenu.add_command(label="Exit", command=self.frames[MainPage]._unsaved_file)
-        menu.add_cascade(label="File", menu=filemenu)
-        helpmenu = tk.Menu(menu, tearoff=False)
-        helpmenu.add_command(label="About")
-        menu.add_cascade(label="Help", menu=helpmenu)
-        return
-    
-    # Overriding the copy event to add a new line when copying nothing.
-    def _copy_text(self, event):
-        selected_text = ""
-        try:
-            selected_text = event.widget.selection_get()
-        except tk.TclError:# no text is selected
-            selected_text = "\n"
-        event.widget.clipboard_clear()
-        event.widget.clipboard_append(selected_text)
-        return "break"
-    
-    # Overriding the default redo key bind.
-    def _redo_text(self, event):
-        try:
-            event.widget.edit_redo()
-        except:
-            pass
-        return "break"
-    
-    # removes default key binding behaviors.
-    def _do_nothing(self, event):
-        return "break"
-
 
 
 # run funciton if the file is directly called on
