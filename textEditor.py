@@ -5,7 +5,103 @@ import tkinter as tk
 from tkinter import filedialog
 from tkinter import ttk
 from tkinter import messagebox
+import queue
 
+
+# This is a Custom Notebook, but I don't feel great taking 
+# credit for the idea becuase it wasn't from me. the reference 
+# came from this stack overflow link (https://stackoverflow.com/a/39459376)
+class BetterNotebook(ttk.Notebook):
+    __initialized = False
+    def __init__(self, *args, **kwargs):
+        if not self.__initialized:
+            self.__initialize_custom_style()
+            self.__initialized = True
+        
+        kwargs["style"] = "BetterNotebook"
+        ttk.Notebook.__init__(self, *args, **kwargs)
+
+        self._active = None
+        self.q = queue.SimpleQueue()
+
+        self.bind("<ButtonPress-1>", self.on_close_press, True)
+        self.bind("<ButtonRelease-1>", self.on_close_release)
+    
+    def on_close_press(self, event):
+        element = self.identify(event.x, event.y)
+
+        if "close" in element:
+            index = self.index("@%d,%d" % (event.x, event.y))
+            self.state(['pressed'])
+            self._active = index
+            return "break"
+        
+    def on_close_release(self, event):
+        if not self.instate(["pressed"]):
+            return
+        
+        element = self.identify(event.x, event.y)
+        if "close" not in element:
+            return
+        
+        index = self.index("@%d,%d" % (event.x, event.y))
+
+        if self._active == index:
+            self.q.put(index)
+            self.event_generate("<<NotebookTabClosed>>")
+        
+        self.state(["!pressed"])
+        self._active = None
+    
+    def __initialize_custom_style(self):
+        style = ttk.Style()
+        self.images = (
+            tk.PhotoImage("img_close", data='''
+                R0lGODlhCAAIAMIBAAAAADs7O4+Pj9nZ2Ts7Ozs7Ozs7Ozs7OyH+EUNyZWF0ZWQg
+                d2l0aCBHSU1QACH5BAEKAAQALAAAAAAIAAgAAAMVGDBEA0qNJyGw7AmxmuaZhWEU
+                5kEJADs=
+                '''),
+            tk.PhotoImage("img_closeactive", data='''
+                R0lGODlhCAAIAMIEAAAAAP/SAP/bNNnZ2cbGxsbGxsbGxsbGxiH5BAEKAAQALAAA
+                AAAIAAgAAAMVGDBEA0qNJyGw7AmxmuaZhWEU5kEJADs=
+                '''),
+            tk.PhotoImage("img_closepressed", data='''
+                R0lGODlhCAAIAMIEAAAAAOUqKv9mZtnZ2Ts7Ozs7Ozs7Ozs7OyH+EUNyZWF0ZWQg
+                d2l0aCBHSU1QACH5BAEKAAQALAAAAAAIAAgAAAMVGDBEA0qNJyGw7AmxmuaZhWEU
+                5kEJADs=
+            ''')
+        )
+
+        style.element_create("close", "image", "img_close",
+                            ("active", "pressed", "!disabled", "img_closepressed"),
+                            ("active", "!disabled", "img_closeactive"), border=8, sticky='')
+        style.layout("BetterNotebook", [("BetterNotebook.client", {"sticky": "nswe"})])
+        style.layout("BetterNotebook.Tab", [
+            ("BetterNotebook.tab", {
+                "sticky": "nswe",
+                "children": [
+                    ("BetterNotebook.padding", {
+                        "side": "top",
+                        "sticky": "nswe",
+                        "children": [
+                            ("BetterNotebook.focus", {
+                                "side": "top",
+                                "sticky": "nswe",
+                                "children": [
+                                    ("BetterNotebook.label", {"side": "left", "sticky": ''}),
+                                    ("BetterNotebook.close", {"side": "left", "sticky": ''}),
+                                ]
+                            })
+                        ]
+                    })
+                ]
+            })
+        ])
+
+# Settings page of the app.
+class Settings(tk.Frame):
+    def __init__(self, parent, controller):
+        tk.Frame.__init__(self, parent)
 
 # the main page of the app.
 class MainPage(tk.Frame):
@@ -26,7 +122,7 @@ class MainPage(tk.Frame):
         terminal_btn = tk.Button(side_frame, text="Terminal")#, command=self._terminal)
         terminal_btn.grid(row=1, column=0, sticky="sew", padx=5, pady=5)
         ttk.Separator(side_frame, orient="horizontal").grid(row=1, column=0, sticky="sew")
-        settings_btn = tk.Button(side_frame, text="Settings", command=controller._settings_layout)
+        settings_btn = tk.Button(side_frame, text="Settings", command=lambda: controller._show_frame(Settings))
         settings_btn.grid(row=2, column=0, sticky="sew", padx=5, pady=5)
         
         # the main text editing frame
@@ -55,7 +151,8 @@ class MainPage(tk.Frame):
         new_button.grid(row=3, column=0, sticky="new", padx=10, pady=(3, 6))
 
         # Text frames using tab control
-        self.tab_control = ttk.Notebook(edit_frame)
+        self.tab_control = BetterNotebook(edit_frame)
+        self.tab_control.enable_traversal()
         self.tab_control.grid(row=0, column=0, sticky="nsew")
         self.tab_control.rowconfigure(0, weight=1)
         self.tab_control.columnconfigure(0, weight=1)
@@ -72,19 +169,18 @@ class MainPage(tk.Frame):
         self.cursor_pos.grid(row=1, column=0, sticky="e")
         return
     
-    def get_tab_index(self, tab=None):
-        if tab:
-            self.tab_control.tabs()[tab]
-        else:
-            idx = self.tab_control.index(self.tab_control.select())
-        return idx
+    def get_tab_index(self):
+        return self.tab_control.index("current")
     
     def set_cursor(self, txt=""):
+        if not isinstance(txt, str):
+            txt = str(txt)
         self.cursor_pos.config(text=txt)
         return
     
     def forget_tab(self, tab):
-        self.tab_control.forget(tab)
+        if isinstance(tab, int):
+            self.tab_control.forget(tab)
         return
     
     def hide_tabs(self):
@@ -110,6 +206,10 @@ class MainPage(tk.Frame):
         Vscrollbar.grid(row=0, column=1, sticky="ns")
         text_widget.config(yscrollcommand=Vscrollbar.set)
 
+        Hscrollbar = tk.Scrollbar(tab_frame, orient="horizontal", command=text_widget.xview)
+        Hscrollbar.grid(row=1, column=0, sticky="ew")
+        text_widget.config(xscrollcommand=Hscrollbar.set)
+
         self.tab_control.add(tab_frame, text=path)
 
         # right click context menu for text widgets.
@@ -132,21 +232,21 @@ class MainPage(tk.Frame):
         return text_widget
     
     def switch_tab(self, tab=None):
-        if tab:
+        if isinstance(tab, int):
             self.tab_control.select(tab)
         else:
             self.tab_control.select(self.tab_control.index("end")-1)
         return
     
     def get_tab_name(self, tab=None):
-        if tab:
+        if isinstance(tab, int):
             name = self.tab_control.tab(tab, "text")
         else:
             name = self.tab_control.tab(self.tab_control.select(), "text")
         return name
     
     def set_tab_name(self, name, tab=None):
-        if tab:
+        if isinstance(tab, int):
             self.tab_control.tab(tab, text=name)
         else:
             self.tab_control.tab(self.tab_control.select(), text=name)
@@ -160,7 +260,8 @@ class TextEditor(tk.Tk):
         tk.Tk.__init__(self, *args, **kwargs)
         # member variables
         self.chunk_size = 1024 * 8 # 8KB chunk size for reading and writing files.
-        self.tabs = [] # keeps track of the tabs
+        self.tabs = [] # keeps track of the tabs.
+        self.current_frame = MainPage
         # Title of the main page.
         self.title("Texitor ~ A Simple Text Editor")
         # Setting up the window size of the app.
@@ -177,7 +278,7 @@ class TextEditor(tk.Tk):
 
         # contain the frames.
         self.frames = {}
-        for F in [MainPage]: # might add more frames for other options later on.
+        for F in [MainPage, Settings]: # might add more frames for other options later on.
             frame = F(container, self)
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky="nsew")
@@ -193,8 +294,7 @@ class TextEditor(tk.Tk):
         self.bind("<Control-n>", self._add_tab_event)
         self.bind("<Control-o>", self._open_file_event)
         self.bind("<Control-Shift-N>", self._remove_tab_event)
-        self.bind("<Control-Tab>", self._switch_tab)
-        self.bind("<Control-Shift-Tab>", self._switch_tab_backward)
+        self.bind("<<NotebookTabClosed>>", self._remove_tab_event)
 
         # set up the menu options
         self._menu_setup()
@@ -210,6 +310,7 @@ class TextEditor(tk.Tk):
     def _show_frame(self, f):
         frame = self.frames[f]
         frame.tkraise()
+        self.current_frame = f
         return
     
     # sets up the menu tab on the main window.
@@ -251,25 +352,6 @@ class TextEditor(tk.Tk):
     # removes default key binding behaviors.
     def _do_nothing(self, event):
         return "break"
-    
-    # Sets up the settings window.
-    def _settings_layout(self):
-        settings = tk.Toplevel(self)
-        settings.title("Settings")
-        settings.geometry("400x500")
-
-        settings.lift()
-        settings.attributes("-topmost", True)
-        settings.focus_set()
-        return
-    
-    # This should be self-explanatory...
-    def _switch_tab(self, event):
-        return "break"
-
-    def _switch_tab_backward(self, event):
-        return "break"
-
 
     # Updates the label that displays the cursors position.
     def _cursor_update(self, event):
@@ -288,16 +370,21 @@ class TextEditor(tk.Tk):
         self.frames[MainPage].set_cursor(text)
         return result
 
-
     # Properly removes tabs.
     def _remove_tab_event(self, event):
-        self._remove_tab()
+        if event.type == tk.EventType.KeyPress:
+            self._remove_tab()
+        else: # if the event came from tab button.
+            self._remove_tab(event.widget.q.get())
         return "break"
 
     def _remove_tab(self, index=None):
         result = None # return value.
         if self.tabs: # check if a tab exists.
-            idx = self.frames[MainPage].get_tab_index(index)
+            if index is None:
+                idx = self.frames[MainPage].get_tab_index() # get current if none is given.
+            else:
+                idx = index
             self.tabs.pop(idx)
             self.frames[MainPage].forget_tab(idx)
             result = True
@@ -309,7 +396,6 @@ class TextEditor(tk.Tk):
             result = False
         
         return result
-
 
     # Properly adds tabs to the program (new file creation).
     def _add_tab_event(self, event):
@@ -337,7 +423,6 @@ class TextEditor(tk.Tk):
         text_widget.focus_set()
 
         return text_widget
-
 
     # Opens a selected file and puts the contents into a text box.
     def _open_file_event(self, event):
@@ -372,15 +457,18 @@ class TextEditor(tk.Tk):
         
         return result
 
-
     # Saves the file under a new name.
     def _save_as_file_event(self, event=None):
         self._save_as_file()
         return "break"
 
-    def _save_as_file():
-        pass
-
+    def _save_as_file(self):
+        # check if the tab exist
+        if self.tabs:
+            file_path = filedialog.asksaveasfilename(defaultextension=".txt", initialdir="/", title="Save File As", filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
+            if self.__save(file_path): # if the file was successfully saved
+                self.frames[MainPage].set_tab_name(file_path) # rename the tab.
+        return
 
     # Saves the currently selected file.
     def _save_file_event(self, event):
@@ -398,13 +486,19 @@ class TextEditor(tk.Tk):
                     # Update the tab's text
                     self.frames[MainPage].set_tab_name(file_path)
         
-        result = None # return value
+            self.__save(file_path)
+        return
+    
+    def __save(self, file_path, tab=None):
+        result = None
+        if tab is None: # get the current index if none is provided.
+            tab = self.frames[MainPage].get_tab_index()
+        # Obtain the text widget.
+        text_widget = self.tabs[tab]
         # If the file_path is valid, save it.
         if file_path:
             try:
                 with open(file_path, "w") as file:
-                    # Obtain the text widget.
-                    text_widget = self.tabs[self.frames[MainPage].get_tab_index()]
                     # Find the end of the file.
                     end_index = int(text_widget.index("end").split(".")[0]) - 1
                     line_index = 1
@@ -438,23 +532,23 @@ class TextEditor(tk.Tk):
             result = True
         else:
             result = False
-        
+
         return result
     
     # Checks if there are unsaved files.
     def _unsaved_file(self):
-        # insert logic for checking changed files here...
-
-        #if changed:
-        result = messagebox.askyesnocancel("Confirm", "Do you want to save your changes before leaving?")
-        if result is True: # Save changes.
-            # save logic
-            self.destroy()
-        elif result is False: # Discard changes.
-            self.destroy()
-        else: # Return to the program.
+        changed = True# insert logic here for checking changed files here...
+        if changed:
+            result = messagebox.askyesnocancel("Confirm", "Do you want to save your changes before leaving?")
+            if result is True: # Save changes.
+                # save logic
+                self.destroy()
+            elif result is False: # Discard changes.
+                self.destroy()
+            else: # Return to the program.
+                pass
+        else:
             pass
-        #else:
         return
 
 
