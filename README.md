@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project is a simple text editor built with a python library called Tkinter. The program's name is Texitor, and it provides many of the basic controls and key bindings you'd expect from a lightweight editor. I've made this program just to gain hands-on experience with GUI design, event handling, and state management in the Tkinter Python library. 
+This project is a simple text editor built with Tkinter, a python library. The program's name is Texitor, and it provides many of the basic controls and key bindings you'd expect from a lightweight editor. I've made this program just to gain hands-on experience with GUI design, event handling, and state management in the Tkinter Python library. 
 
 ## Features
 
