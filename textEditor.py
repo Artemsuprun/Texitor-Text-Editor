@@ -1,4 +1,10 @@
-# this program is a text editor for the user.
+# A simple text editor using tkinter
+#
+# Author:   Artem Suprun
+# Date:     12/29/2025 *(last updated)*
+# Description:
+#   A simple text editor application built using the tkinter library in Python.
+#
 
 # library imports
 import tkinter as tk
@@ -443,6 +449,8 @@ class TextEditor(tk.Tk):
                         text_widget.insert(tk.END, chunk)
                         #text_widget.insert(tk.END, "\n") This was adding an extra new line at the end of each chunk which helped reduce lag
                         chunk = file.read(self.chunk_size)
+                    # reset the text redo/undo stack
+                    text_widget.edit_reset()
                     # move cursor to the start.
                     text_widget.mark_set("insert", "1.0")
             except FileNotFoundError:
